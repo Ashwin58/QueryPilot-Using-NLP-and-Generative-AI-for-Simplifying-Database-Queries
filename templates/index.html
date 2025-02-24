@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QueryPilot</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <style>
+    /* Simple spinner CSS */
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top: 4px solid #f87171; /* red-400 */
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+  <script>
+    async function handleQuery() {
+      const dbName = document.getElementById('db-select').value;
+      const userQuery = document.getElementById('natural-language-query').value;
+
+      if (!userQuery || !dbName) {
+        alert("Please select a database and enter a query.");
+        return;
+      }
+
+      // Generate SQL query
+      const sqlResponse = await fetch('/generate_sql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_query: userQuery, db_name: dbName })
+      });
+      const sqlData = await sqlResponse.json();
+
+      if (sqlData.error) {
+        alert("Error generating SQL: " + sqlData.error);
+        return;
+      }
+
+      // Display the generated SQL query in the textarea
+      document.getElementById('sql-query').value = sqlData.sql_query;
+
+      // Set a spinner as a loading indicator in the results area
+      document.getElementById('results').innerHTML = `
+        <div class="flex flex-col items-center justify-center py-6">
+          <div class="spinner"></div>
+          <div class="mt-2 text-gray-300">Generating Query Result...</div>
+        </div>
+      `;
+
+      // Execute SQL query and get the resulting HTML table
+      const executeResponse = await fetch('/execute_query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql_query: sqlData.sql_query })
+      });
+
+      // Since /execute_query returns HTML, we use text()
+      const resultsHtml = await executeResponse.text();
+
+      // Insert the returned HTML table into the results container
+      document.getElementById('results').innerHTML = resultsHtml;
+    }
+  </script>
+</head>
+<body class="bg-gray-800 text-white min-h-screen flex flex-col items-center justify-center p-4">
+  <!-- Query Input Section -->
+  <div class="w-full max-w-3xl bg-gray-900 p-6 rounded-lg shadow-lg">
+    <h1 class="text-2xl font-bold mb-4">
+      QueryPilot: Using NLP and Generative AI for Simplifying Database Queries
+    </h1>
+    <p class="text-gray-400 mb-6">Generate SQL queries from natural language</p>
+
+    <!-- Database selection -->
+    <div class="mb-4">
+      <label for="db-select" class="block mb-2">Select Database</label>
+      <select id="db-select" name="db-select" class="w-full p-2 bg-gray-700 text-white rounded">
+        {% for db in databases %}
+        <option value="{{ db }}">{{ db }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Natural Language Query input -->
+    <div class="mb-4">
+      <label for="natural-language-query" class="block mb-2">Natural Language Query</label>
+      <input type="text" id="natural-language-query" name="natural_language_query" placeholder="Enter your query here" class="w-full p-2 bg-gray-700 text-white rounded" />
+    </div>
+
+    <!-- Generate SQL Query button -->
+    <button type="button" onclick="handleQuery()" class="w-full bg-red-800 hover:bg-red-900 text-white p-2 rounded">
+      Generate SQL Query
+    </button>
+  </div>
+
+  <!-- Generated SQL Query Display -->
+  <div class="w-full max-w-3xl bg-gray-900 p-6 rounded-lg shadow-lg mt-6">
+    <h2 class="text-xl font-bold mb-4">Generated SQL Query</h2>
+    <textarea id="sql-query" name="sql-query" rows="4" class="w-full p-2 bg-gray-700 text-white rounded" readonly></textarea>
+  </div>
+
+  <!-- Query Results Display -->
+  <div class="w-full max-w-3xl bg-gray-900 p-6 rounded-lg shadow-lg mt-6">
+    <h2 class="text-xl font-bold mb-4">Query Results</h2>
+    <!-- The results table or spinner will be injected here -->
+    <div id="results" class="overflow-x-auto p-2"></div>
+  </div>
+</body>
+</html>
